@@ -1,0 +1,24 @@
+# Claude Code — required
+api.anthropic.com          # model requests, WebFetch domain safety check, feature flags
+claude.ai                  # claude.ai account authentication
+claude.com                 # sign-in page that redirects to claude.ai
+platform.claude.com        # Console auth; OAuth token exchange/refresh for both account types
+
+# Claude Code — optional, drop what you do not use
+code.claude.com            # documentation lookups by the built-in guide agent
+raw.githubusercontent.com  # changelog feed for /release-notes
+registry.npmjs.org         # npx-launched MCP servers, plugin installs
+mcp-proxy.anthropic.com    # MCP connectors configured on claude.ai
+# downloads.claude.ai      # only needed for the native installer / auto-updater
+# storage.googleapis.com   # plugin metadata shown in /plugin
+
+# Toolchain
+github.com
+codeload.github.com
+objects.githubusercontent.com
+repo1.maven.org
+repo.maven.apache.org
+repo.scala-sbt.org
+pypi.org
+files.pythonhosted.org
+deb.debian.org
