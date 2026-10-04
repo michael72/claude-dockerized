@@ -41,6 +41,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     locales \
     tini \
+    # graphviz: layout engine PlantUML needs for most diagram types (pumlsrv).
+    graphviz \
     # CLAUDE: needed only by init-firewall.sh (egress allowlist). Drop these
     # three plus the NET_ADMIN/NET_RAW capabilities if you do not want a
     # firewall inside the container.
@@ -103,16 +105,54 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     uv python install && \
     uv venv "$UV_PROJECT_ENVIRONMENT"
 
-# --- Claude Code ------------------------------------------------------------
+# pumlsrv + pumlcli: local PlantUML server for diagram rendering. Started by
+# the entrypoint only with setting.pumlsrv_support=true.
+# See: https://github.com/michael72/pumlsrv
+ENV PUMLSRV_PORT=8380
+RUN curl -fsSL https://raw.githubusercontent.com/michael72/pumlsrv/master/get.sh | PUMLSRV_START=n bash
+
+# --- Claude Code and the agent add-ons ---------------------------------------
+
+# Only `claude-dockerized.sh update` passes this, with the current time, so
+# every layer from here on is rebuilt: Claude Code (when CLAUDE_CODE_VERSION is
+# "latest"), OpenSpec, graphify and Matt Pocock's skills. A plain `build` keeps
+# the cached layers. Same mechanism as OPENCODE_BUILD_TIME in opencode-dockerized.
+ARG CLAUDE_BUILD_TIME=0
 
 # CLAUDE: npm install rather than the native installer from downloads.claude.ai.
 # The npm route means the image needs registry.npmjs.org at build time but never
 # needs downloads.claude.ai at run time, which keeps the egress allowlist one
 # entry shorter.
+#
+# OpenSpec: spec-driven development; the entrypoint runs
+# 'openspec init --tools claude' per project with setting.openspec_support=true.
+# See: https://github.com/Fission-AI/OpenSpec/
 RUN bash -c "source \$NVM_DIR/nvm.sh && \
-    npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+    npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} @fission-ai/openspec@latest"
+
+# graphify: code knowledge graph, wired into a project with
+# setting.graphify_support=true. See: https://pypi.org/project/graphifyy/
+RUN uv tool install graphifyy
 
 USER root
+
+# Matt Pocock's agent skills, staged in the image (opt-in via
+# setting.matt_pocock_skills_support - entrypoint.sh syncs them into
+# ~/.claude/skills at launch).
+#
+# The upstream installer ('skills', from vercel-labs) writes a global
+# Claude Code install to $HOME/.claude/skills, so HOME is pointed at the
+# staging directory to redirect it. CLAUDE_CONFIG_DIR is not set yet at this
+# point, but unset it anyway in case the installer ever starts honouring it.
+# See: https://github.com/mattpocock/skills
+ENV MATT_POCOCK_SKILLS_DIR=/opt/matt-pocock-skills
+RUN mkdir -p "$MATT_POCOCK_SKILLS_DIR" && \
+    env -u CLAUDE_CONFIG_DIR HOME="$MATT_POCOCK_SKILLS_DIR" \
+        npx --yes skills@latest add mattpocock/skills \
+        --skill '*' --agent claude-code --global --yes < /dev/null && \
+    test -n "$(ls -A "$MATT_POCOCK_SKILLS_DIR/.claude/skills")" && \
+    rm -rf "$MATT_POCOCK_SKILLS_DIR/.npm" "$MATT_POCOCK_SKILLS_DIR/.cache" && \
+    chmod -R a+rX "$MATT_POCOCK_SKILLS_DIR"
 
 # CLAUDE: managed settings sit at the top of the settings hierarchy on Linux and
 # override anything in ~/.claude or the project's .claude/. Note the caveat from
@@ -132,16 +172,19 @@ ENV CLAUDE_CONFIG_DIR=/home/coder/.claude
 # so a pinned CLAUDE_CODE_VERSION is not silently replaced at runtime.
 ENV DISABLE_AUTOUPDATER=1 \
     DISABLE_TELEMETRY=1 \
-    DISABLE_ERROR_REPORTING=1
+    DISABLE_ERROR_REPORTING=1 \
+    DO_NOT_TRACK=1
 
-RUN mkdir -p /home/coder/.claude /home/coder/.cache /home/coder/.npm \
-             /home/coder/.m2 /home/coder/.gradle && \
+RUN mkdir -p /home/coder/.claude /home/coder/.cache /home/coder/.config \
+             /home/coder/.npm /home/coder/.m2 /home/coder/.gradle && \
     chown -R coder:coder /home/coder
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY init-firewall.sh /usr/local/bin/init-firewall.sh
+COPY claude-local-models.sh /usr/local/bin/claude-local-models
 COPY allowed-domains.txt /etc/claude-dockerized/allowed-domains.txt
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/init-firewall.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/init-firewall.sh \
+             /usr/local/bin/claude-local-models
 
 WORKDIR /
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]

@@ -35,8 +35,11 @@ if [ -n "$host_net" ]; then
 fi
 
 resolved=0
-while read -r domain; do
-    case "$domain" in ''|'#'*) continue ;; esac
+while read -r line || [ -n "$line" ]; do
+    # Strip trailing comments: "api.anthropic.com   # why" -> "api.anthropic.com".
+    domain="${line%%#*}"
+    domain="${domain//[[:space:]]/}"
+    [ -z "$domain" ] && continue
     ips="$(dig +short +time=3 +tries=2 A "$domain" | grep -E '^[0-9.]+$' || true)"
     for ip in $ips; do
         ipset add allowed-domains "$ip" 2>/dev/null || true

@@ -1,0 +1,84 @@
+# claude-dockerized configuration
+# Location: ~/.config/claude-dockerized/config   (./setup.sh writes it for you)
+#
+# Format:
+#   setting.<name>=<value>                              built-in features
+#   mount.<name>=<host_path>:<container_path>[:rw]      extra mounts, read-only by default
+#   env.<name>=<VARIABLE_NAME>                          host variables passed into the container
+#
+# ~ is expanded to your home directory. Unknown settings are reported and ignored.
+
+# ============================================
+# Sandbox
+# ============================================
+
+# Forward the host SSH agent so git over SSH works without copying keys. The
+# socket is mounted at /run/host-ssh-agent.sock. The agent can use your keys
+# for as long as the session runs - including for pushes you did not ask for.
+setting.ssh_agent_support=false
+
+# Default-deny egress with the allowlist in allowed-domains.txt. Switches from
+# --network host to a bridge network and adds NET_ADMIN/NET_RAW. The env
+# variable CLAUDE_FIREWALL=true|false overrides this per run.
+setting.firewall_support=false
+
+# Mount /var/run/docker.sock (Testcontainers). Host-root equivalent - read the
+# README first. CLAUDE_DOCKER_SOCK=true|false overrides this per run.
+setting.docker_socket_support=false
+
+# ============================================
+# Agent add-ons
+# ============================================
+
+# Matt Pocock's agent skills (https://github.com/mattpocock/skills): grill-me,
+# tdd, code-review, to-spec, to-tickets, triage, ... Synced from the image into
+# ~/.claude/skills on every launch; run /setup-matt-pocock-skills once per repo.
+setting.matt_pocock_skills_support=false
+
+# OpenSpec (https://github.com/Fission-AI/OpenSpec/): 'openspec init --tools
+# claude' in new projects, 'openspec update' on every launch, /opsx:* commands.
+setting.openspec_support=false
+
+# graphify (https://pypi.org/project/graphifyy/): /graphify skill, a CLAUDE.md
+# section and PreToolUse hooks in the project, graph refreshed on every launch.
+setting.graphify_support=false
+
+# pumlsrv PlantUML server on port 8380 (for pumlcli).
+setting.pumlsrv_support=false
+
+# ============================================
+# LLM traffic interception (llm-interceptor / mitmproxy)
+# ============================================
+# Run 'lli watch' on the HOST. The container trusts ~/.mitmproxy/mitmproxy-ca-cert.pem
+# (only the certificate is mounted, not the key) and sends HTTP(S)_PROXY there.
+setting.llm_interceptor_support=false
+setting.llm_interceptor_port=9090
+# Also proxy loopback, so a local model server is captured. lli then also needs
+#   lli watch --include '*127.0.0.1*' --include '*localhost*'
+setting.llm_interceptor_capture_local=false
+
+# ============================================
+# Local model server
+# ============================================
+# Any server speaking the Anthropic Messages API: llama-server (:8080),
+# ollama >= 0.14 (:11434), LM Studio (:1234), LiteLLM. The server's model list
+# replaces the Claude models in /model on every launch.
+setting.local_model_support=false
+setting.local_model_base_url=http://127.0.0.1:8080
+# Default model id; empty = the first model the server lists.
+setting.local_model=
+
+# ============================================
+# Custom volume mounts
+# ============================================
+# mount.gitconfig=~/.gitconfig:/home/coder/.gitconfig
+# mount.gradle=~/.gradle/gradle.properties:/home/coder/.gradle/gradle.properties
+# mount.m2=~/.m2/settings.xml:/home/coder/.m2/settings.xml
+
+# ============================================
+# Environment variables
+# ============================================
+# Only variables set on the host are passed; values never appear on the docker
+# command line.
+# env.context7=CONTEXT7_API_KEY
+# env.compact=CLAUDE_CODE_AUTO_COMPACT_WINDOW
