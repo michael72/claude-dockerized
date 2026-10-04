@@ -51,8 +51,11 @@ docker_exec() {
     docker run "$@"
 }
 
-tty_args() {
-    if [ -t 0 ] && [ -t 1 ]; then echo "-it"; else echo "-i"; fi
+# Sets TTY_ARGS. Must not be called via $(...): inside a command substitution
+# stdout is a pipe, so the -t 1 test would always fail and the container would
+# never get a TTY (claude then drops into --print mode).
+set_tty_args() {
+    if [ -t 0 ] && [ -t 1 ]; then TTY_ARGS=(-it); else TTY_ARGS=(-i); fi
 }
 
 # docker_run <project dir> <command...>
@@ -71,8 +74,8 @@ docker_run() {
     local name
     name="claude-$(sanitize_container_name "$(basename "$project")")-$(generate_random_suffix)"
 
-    # shellcheck disable=SC2046  # tty_args is one word or none
-    docker_exec $(tty_args) \
+    set_tty_args
+    docker_exec "${TTY_ARGS[@]}" \
         --name "$name" \
         --hostname claude-sandbox \
         "${DOCKER_COMMON_ARGS[@]}" \
@@ -92,8 +95,8 @@ run_models() {
     build_mount_args
     build_env_args
     build_common_docker_args
-    # shellcheck disable=SC2046
-    docker_exec $(tty_args) \
+    set_tty_args
+    docker_exec "${TTY_ARGS[@]}" \
         --name "claude-models-$$" \
         "${DOCKER_COMMON_ARGS[@]}" \
         "${DOCKER_ENV_ARGS[@]}" \
