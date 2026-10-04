@@ -1,0 +1,12 @@
+# Only entrypoint.sh, init-firewall.sh, claude-local-models.sh,
+# allowed-domains.txt and managed-settings.json are COPYed into the image.
+.git
+.gitignore
+.dockerignore
+*.md
+LICENSE
+examples/
+completions/
+claude-dockerized.sh
+config-lib.sh
+setup.sh
