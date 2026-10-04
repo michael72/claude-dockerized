@@ -45,9 +45,14 @@ docker_run() {
         -v "$project:/workspace:rw"
         -v "$STATE_DIR:/home/coder/.claude:rw"
         --workdir /workspace
-        # No new privileges, no capabilities except what the firewall needs.
+        # No new privileges, and only the capabilities the entrypoint needs to
+        # remap the UID/GID, chown state dirs and drop to the coder user. The
+        # entrypoint clears them all (setpriv --inh-caps=-all) before exec'ing
+        # claude, and no-new-privileges keeps them from coming back.
         --security-opt no-new-privileges
         --cap-drop ALL
+        --cap-add SETUID --cap-add SETGID
+        --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER
     )
 
     if [ "$FIREWALL" = "true" ]; then
